@@ -7,6 +7,7 @@ const (
 	DRAW
 	PLAYER1WON
 	PLAYER2WON
+	DISCONNECTED
 )
 
 type GameState struct {
