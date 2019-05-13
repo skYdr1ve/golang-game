@@ -38,7 +38,6 @@ func main() {
 	defer l.Close()
 	fmt.Println("Successfully started listening on", connAddress+":"+connPort)
 	var mutex sync.Mutex
-	var gameEnding sync.WaitGroup
 	gameConcluded := make(chan int, 1)
 	gameXO = game.New()
 	clientIDs = map[int]bool{1: false, 2: false}
@@ -60,13 +59,13 @@ func main() {
 				}
 			}
 			fmt.Println("Client", newID, "connected")
-			go handleClient(conn, newID, &mutex, &servSync, &gameEnding, gameConcluded)
+			go handleClient(conn, newID, &mutex, &servSync, gameConcluded)
 		}
 		servSync.Wait()
 	}
 }
 
-func handleClient(conn net.Conn, id int, mutex *sync.Mutex, servSync *sync.WaitGroup, gameEnding *sync.WaitGroup, gameConcluded chan int) {
+func handleClient(conn net.Conn, id int, mutex *sync.Mutex, servSync *sync.WaitGroup, gameConcluded chan int) {
 	defer servSync.Done()
 	defer atomic.AddInt32(&clientCounter, -1)
 	defer fmt.Println("Client", id, "disconnected")
@@ -132,19 +131,15 @@ func handleClient(conn net.Conn, id int, mutex *sync.Mutex, servSync *sync.WaitG
 		}
 		_, err = conn.Write(append(gameXO.PlayingField, byte(gameXO.State)))
 		if err != nil {
-			if clientCounter == 2 {
-				gameConcluded <- -1
-			}
 			break
 		}
-		gameEnding.Add(1)
+		atomic.AddInt32(&clientCounter, -1)
 		continuation := []byte{0}
 		_, err = conn.Read(continuation)
-		gameEnding.Done()
+		atomic.AddInt32(&clientCounter, 1)
 		if err != nil {
 			break
 		}
-		gameEnding.Wait()
 		gameXO.ResetGame()
 	}
 }
