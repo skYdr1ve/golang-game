@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"sync"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	connPort    = "5050"
+	connPort    = "8088"
 	connType    = "tcp"
 	connAddress = "localhost"
 )
@@ -23,7 +24,6 @@ var gameXO game.GameState
 
 func main() {
 	var servSync sync.WaitGroup
-	servSync.Add(1)
 	address, err := net.ResolveTCPAddr(connType, connAddress+":"+connPort)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
@@ -37,17 +37,20 @@ func main() {
 	defer l.Close()
 	fmt.Println("Successfully started listening on", connAddress+":"+connPort)
 	var mutex sync.Mutex
-	gameConcluded := make(chan int)
+	gameConcluded := make(chan int, 1)
+	gameXO = game.New()
 	for true {
+		servSync.Add(1)
 		for clientCounter < 2 {
 			conn, err := l.Accept()
 			if err != nil {
 				fmt.Println("Error accepting: ", err.Error())
 				os.Exit(1)
 			}
-			clientCounter++
-			fmt.Println("Client", clientCounter, "connected")
-			go handleClient(conn, clientCounter, &mutex, &servSync, gameConcluded)
+			atomic.AddInt32(&clientCounter, 1)
+			newID := clientCounter
+			fmt.Println("Client", newID, "connected")
+			go handleClient(conn, newID, &mutex, &servSync, gameConcluded)
 		}
 		servSync.Wait()
 	}
@@ -55,72 +58,77 @@ func main() {
 
 func handleClient(conn net.Conn, id int32, mutex *sync.Mutex, servSync *sync.WaitGroup, gameConcluded chan int) {
 	defer servSync.Done()
+	defer atomic.AddInt32(&clientCounter, -1)
+	defer fmt.Println("Client", id, "disconnected")
+	defer gameXO.ResetGame()
 	for true {
 		for clientCounter < 2 {
-			_, err := conn.Write([]byte("0"))
+			_, err := conn.Write([]byte{0})
 			if err != nil {
-				atomic.AddInt32(&clientCounter, -1)
-				fmt.Println("Client", id, "disconnected")
-				gameXO.ResetGame()
-				gameConcluded <- -1
 				return
 			}
 			time.Sleep(time.Second)
 		}
 		_, err := conn.Write([]byte{byte(id)})
 		if err != nil {
-			atomic.AddInt32(&clientCounter, -1)
-			fmt.Println("Client", id, "disconnected")
-			gameXO.ResetGame()
-			gameConcluded <- -1
+			if clientCounter == 2 {
+				gameConcluded <- -1
+			}
 			return
+		}
+		if id == 2 {
+			waitTime := rand.Intn(700)
+			time.Sleep(time.Duration(waitTime) * time.Millisecond)
 		}
 		continuePlaying := true
 		for continuePlaying {
+			time.Sleep(time.Duration(100) * time.Millisecond)
+			//log.Printf("Before lock: %d\n", id)
 			mutex.Lock()
+			//log.Printf("After lock: %d\n", id)
 			select {
 			case exitCode := <-gameConcluded:
 				if exitCode == -1 {
 					gameXO.State = game.DISCONNECTED
 				}
-				_, err = conn.Write(append(gameXO.PlayingField, byte(gameXO.State)))
-				if err != nil {
-					atomic.AddInt32(&clientCounter, -1)
-					fmt.Println("Client", id, "disconnected")
-					return
-				}
+				continuePlaying = false
 			default:
-				turn := make([]byte, 3)
+				turn := make([]byte, 1)
 				_, err = conn.Write(append(gameXO.PlayingField, byte(gameXO.State)))
 				if err != nil {
-					atomic.AddInt32(&clientCounter, -1)
-					fmt.Println("Client", id, "disconnected")
-					gameXO.ResetGame()
-					gameConcluded <- -1
-					return
+					if clientCounter == 2 {
+						gameConcluded <- -1
+					}
+					continuePlaying = false
 				}
-				_, err := conn.Read(turn)
+				_, err = conn.Read(turn)
+				//log.Printf("Read %v bytes: %v", n, turn)
 				if err != nil {
-					atomic.AddInt32(&clientCounter, -1)
-					fmt.Println("Client", id, "disconnected")
-					gameXO.ResetGame()
-					gameConcluded <- -1
-					return
+					if clientCounter == 2 {
+						gameConcluded <- -1
+					}
+					continuePlaying = false
 				}
 				gameXO.PlayingField[int(turn[0])] = byte(id)
 				gameXO.CheckState()
 				if gameXO.State != game.GOINGON {
 					continuePlaying = false
-					gameConcluded <- 1
+					if clientCounter == 2 {
+						gameConcluded <- 1
+					}
 				}
 			}
 			mutex.Unlock()
+			//log.Printf("After unlock: %d\n", id)
 		}
 		_, err = conn.Write(append(gameXO.PlayingField, byte(gameXO.State)))
 		if err != nil {
-			atomic.AddInt32(&clientCounter, -1)
-			fmt.Println("Client", id, "disconnected")
-			return
+			break
+		}
+		continuation := []byte{0}
+		_, err = conn.Read(continuation)
+		if err != nil {
+			break
 		}
 		gameXO.ResetGame()
 	}
