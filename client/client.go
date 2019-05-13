@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/golang-game/game"
 )
 
 type TcpClient struct {
@@ -12,19 +14,9 @@ type TcpClient struct {
 	TcpConn *net.TCPConn
 }
 
-type State byte
 type Config int
 
-const (
-	GOINGON State = iota
-	DRAW
-	PLAYER1WON
-	PLAYER2WON
-	DISCONNECTED
-)
-
 var configuration Config
-var state State
 
 func NewTcpClient(address string) *TcpClient {
 	return &TcpClient{
@@ -88,13 +80,12 @@ func (tcpClient *TcpClient) Connect() bool {
 func (tcpClient *TcpClient) WaitingConfig() {
 	bytes := [1]byte{}
 	for {
-		n, err := tcpClient.TcpConn.Read(bytes[0:])
+		_, err := tcpClient.TcpConn.Read(bytes[0:])
 		if err != nil {
 			log.Printf("Could not read message: %v\n", err.Error())
 			tcpClient.TcpConn.Close()
 			tcpClient.Connect()
 		}
-		log.Printf("Read %v bytes: %v\n", n, bytes[:n])
 		if bytes[0] == 0 {
 			fmt.Println("Player search")
 			continue
@@ -110,43 +101,8 @@ func (tcpClient *TcpClient) WaitingConfig() {
 	}
 }
 
-func drawObj(obj int) string {
-	if obj == 0 {
-		return " "
-	} else if obj == 1 {
-		return "X"
-	} else {
-		return "O"
-	}
-}
-
-func drawMap(bytes []byte) {
-	fmt.Printf("\n-----------\n")
-	for i := 0; i < 9; i++ {
-		if i == 0 || i == 3 || i == 6 {
-			fmt.Printf(" " + drawObj(int(bytes[i])))
-		} else if i == 1 || i == 4 || i == 7 {
-			fmt.Printf(" | " + drawObj(int(bytes[i])))
-		} else {
-			fmt.Printf(" | " + drawObj(int(bytes[i])) + " ")
-			fmt.Printf("\n-----------\n")
-		}
-	}
-	fmt.Println()
-}
-
-func check(bytes []byte, i int) bool {
-	if i > 8 || i < 0 {
-		return false
-	}
-	if bytes[i] == 1 || bytes[i] == 2 {
-		return false
-	}
-	return true
-}
-
 func (tcpClient *TcpClient) Receive() {
-	bytes := [10]byte{}
+	bytes := make([]byte, game.FieldSizeInBytes+1)
 	msg := make([]byte, 1)
 	var x, y int
 	for {
@@ -157,38 +113,35 @@ func (tcpClient *TcpClient) Receive() {
 			tcpClient.TcpConn.Close()
 			tcpClient.Connect()
 		}
-		log.Printf("Read %v bytes: %v\n", n, string(bytes[:n]))
-		drawMap(bytes[:9])
-		switch State(bytes[9]) {
-		case GOINGON:
+		game.DrawMap(bytes[:game.FieldSizeInBytes])
+		switch game.State(bytes[game.FieldSizeInBytes]) {
+		case game.GOINGON:
 			break
-		case DRAW:
+		case game.DRAW:
 			fmt.Println("Draw")
 			return
-		case PLAYER1WON:
+		case game.PLAYER1WON:
 			if configuration == 1 {
 				fmt.Println("You won")
 				return
-			} else {
-				fmt.Println("You lost")
-				return
 			}
-		case PLAYER2WON:
+			fmt.Println("You lost")
+			return
+		case game.PLAYER2WON:
 			if configuration == 2 {
 				fmt.Println("You won")
 				return
-			} else {
-				fmt.Println("You lost")
-				return
 			}
-		case DISCONNECTED:
+			fmt.Println("You lost")
+			return
+		case game.DISCONNECTED:
 			fmt.Println("Second player left")
 			return
 		}
 		fmt.Printf("Your turn: ")
 		fmt.Scan(&x, &y)
 		for {
-			if check(bytes[:9], (x-1)*3+y-1) == true {
+			if game.Check(bytes[:game.FieldSizeInBytes], (x-1)*3+y-1) == true {
 				msg[0] = byte((x-1)*3 + y - 1)
 				break
 			} else {

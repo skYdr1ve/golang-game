@@ -1,6 +1,10 @@
 package game
 
+import "fmt"
+
 type State byte
+
+var FieldSizeInBytes = 9
 
 const (
 	GOINGON State = iota
@@ -106,4 +110,39 @@ func New() GameState {
 		State:        GOINGON,
 	}
 	return newGame
+}
+
+func Check(bytes []byte, i int) bool {
+	if i > 8 || i < 0 {
+		return false
+	}
+	if bytes[i] == 1 || bytes[i] == 2 {
+		return false
+	}
+	return true
+}
+
+func DrawMap(bytes []byte) {
+	fmt.Printf("\n-----------\n")
+	for i := 0; i < 9; i++ {
+		if i == 0 || i == 3 || i == 6 {
+			fmt.Printf(" " + drawObj(int(bytes[i])))
+		} else if i == 1 || i == 4 || i == 7 {
+			fmt.Printf(" | " + drawObj(int(bytes[i])))
+		} else {
+			fmt.Printf(" | " + drawObj(int(bytes[i])) + " ")
+			fmt.Printf("\n-----------\n")
+		}
+	}
+	fmt.Println()
+}
+
+func drawObj(obj int) string {
+	if obj == 0 {
+		return " "
+	} else if obj == 1 {
+		return "X"
+	} else {
+		return "O"
+	}
 }
