@@ -112,11 +112,14 @@ func New() GameState {
 	return newGame
 }
 
-func Check(bytes []byte, i int) bool {
-	if i > 8 || i < 0 {
+func Check(bytes []byte, x int, y int) bool {
+	if x < 1 || x > 3 {
 		return false
 	}
-	if bytes[i] == 1 || bytes[i] == 2 {
+	if y < 1 || y > 3 {
+		return false
+	}
+	if bytes[(x-1)*3+y-1] != 0 {
 		return false
 	}
 	return true

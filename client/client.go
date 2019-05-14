@@ -141,7 +141,7 @@ func (tcpClient *TcpClient) Receive() {
 		fmt.Printf("Your turn: ")
 		fmt.Scan(&x, &y)
 		for {
-			if game.Check(bytes[:game.FieldSizeInBytes], (x-1)*3+y-1) == true {
+			if game.Check(bytes[:game.FieldSizeInBytes], x, y) {
 				msg[0] = byte((x-1)*3 + y - 1)
 				break
 			} else {
