@@ -112,6 +112,7 @@ func New() GameState {
 	return newGame
 }
 
+//Function checks if the user made the move correctly
 func Check(bytes []byte, x int, y int) bool {
 	if x < 1 || x > 3 {
 		return false
@@ -125,6 +126,7 @@ func Check(bytes []byte, x int, y int) bool {
 	return true
 }
 
+//Function draws a tic tac toe map
 func DrawMap(bytes []byte) {
 	fmt.Printf("\n-----------\n")
 	for i := 0; i < 9; i++ {
@@ -140,6 +142,7 @@ func DrawMap(bytes []byte) {
 	fmt.Println()
 }
 
+//Function draws elements on the map
 func drawObj(obj int) string {
 	if obj == 0 {
 		return " "

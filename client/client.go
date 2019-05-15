@@ -18,12 +18,16 @@ type Config int
 
 var configuration Config
 
+//Create new client
 func NewTcpClient(address string) *TcpClient {
 	return &TcpClient{
 		Address: address,
 	}
 }
 
+//Client startup function
+//Call the connection function
+//Call game
 func (tcpClient *TcpClient) Start() {
 	if !tcpClient.Connect() {
 		fmt.Println("Could not connect to the server")
@@ -48,6 +52,9 @@ func (tcpClient *TcpClient) Start() {
 	}
 }
 
+//Trying to connection to the server
+//if after 15 seconds we did not connect to the server
+//interrupt the connection attempt and exit
 func (tcpClient *TcpClient) Connect() bool {
 
 	tcpAddress, err := net.ResolveTCPAddr("tcp", tcpClient.Address)
@@ -77,6 +84,8 @@ func (tcpClient *TcpClient) Connect() bool {
 	return true
 }
 
+//Receive information from the server
+//whetere the enemy is connected and for whom client play
 func (tcpClient *TcpClient) WaitingConfig() {
 	bytes := [1]byte{}
 	for {
@@ -101,6 +110,10 @@ func (tcpClient *TcpClient) WaitingConfig() {
 	}
 }
 
+//Message exchange between client and server
+//Get the map tic tac toe
+//Check on the game situation
+//Sending a message to the server
 func (tcpClient *TcpClient) Receive() {
 	bytes := make([]byte, game.FieldSizeInBytes+1)
 	msg := make([]byte, 1)
