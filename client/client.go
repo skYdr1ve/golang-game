@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net"
-	"time"
-
-	"github.com/golang-game/game"
+"fmt"
+"log"
+"net"
+"time"
+"github.com/golang-game/game"
 )
 
 type TcpClient struct {
@@ -29,14 +28,24 @@ func NewTcpClient(address string) *TcpClient {
 //Call the connection function
 //Call game
 func (tcpClient *TcpClient) Start() {
+	//Check whether connected or not
+	//if not then exit
 	if !tcpClient.Connect() {
 		fmt.Println("Could not connect to the server")
 		return
 	}
 	var choice int
 	for {
+		//Call the function that expects
+		//the player to connect and
+		//information for the game
+		//Call the  messaging function between
+		//the server and the client
 		tcpClient.WaitingConfig()
 		tcpClient.Receive()
+		//A block of code that asks the user
+		//if  he wants to continue and cheks
+		//the input for correctness
 		fmt.Printf("Continue playing?(1-yes,2-no): ")
 		for {
 			fmt.Scan(&choice)
@@ -56,9 +65,9 @@ func (tcpClient *TcpClient) Start() {
 //if after 15 seconds we did not connect to the server
 //interrupt the connection attempt and exit
 func (tcpClient *TcpClient) Connect() bool {
-
+	//Check the address and port for corrctness
+	//for the protocol TCP
 	tcpAddress, err := net.ResolveTCPAddr("tcp", tcpClient.Address)
-
 	if err != nil {
 		log.Fatalf("Could not create TCP address from: %v %v\n", tcpClient.Address, err.Error())
 	}
@@ -66,10 +75,10 @@ func (tcpClient *TcpClient) Connect() bool {
 	connected := false
 	tempTime := time.Now().Second()
 	for !connected {
-
 		log.Printf("Connecting to: %v ...\n", tcpClient.Address)
+		//Trying to connect
 		tcpClient.TcpConn, err = net.DialTCP("tcp4", nil, tcpAddress)
-
+		//If not connected then try again
 		if err != nil {
 			log.Printf("Could not create TCP connection: %v\n", err.Error())
 			time.Sleep(3 * time.Second)
@@ -85,16 +94,20 @@ func (tcpClient *TcpClient) Connect() bool {
 }
 
 //Receive information from the server
-//whetere the enemy is connected and for whom client play
+//whetere the enemy is connected and for whom client
 func (tcpClient *TcpClient) WaitingConfig() {
 	bytes := [1]byte{}
 	for {
+		//In 0 bytes is the system information
+		//allowing to determine whe we are playing
+		//for and whether the player is connected
 		_, err := tcpClient.TcpConn.Read(bytes[0:])
 		if err != nil {
 			log.Printf("Could not read message: %v\n", err.Error())
 			tcpClient.TcpConn.Close()
 			tcpClient.Connect()
 		}
+
 		if bytes[0] == 0 {
 			fmt.Println("Player search")
 			continue
@@ -117,16 +130,22 @@ func (tcpClient *TcpClient) WaitingConfig() {
 func (tcpClient *TcpClient) Receive() {
 	bytes := make([]byte, game.FieldSizeInBytes+1)
 	msg := make([]byte, 1)
-	var x, y int
 	for {
-		n, err := tcpClient.TcpConn.Read(bytes[0:])
+		//Read the byte array received from the server
+		//In the first 9 bytes there is a fiald for tic tac toe.
+		//In 10 bytes is the system information allowing to
+		//determine the course of the game
+		_, err := tcpClient.TcpConn.Read(bytes[0:])
 
 		if err != nil {
 			log.Printf("Could not read message: %v\n", err.Error())
 			tcpClient.TcpConn.Close()
 			tcpClient.Connect()
 		}
+		//Call the function where we pass the first 9 bytes
+		//to unsubscribe the card
 		game.DrawMap(bytes[:game.FieldSizeInBytes])
+		//Check the game situation which was 10 bytes
 		switch game.State(bytes[game.FieldSizeInBytes]) {
 		case game.GOINGON:
 			break
@@ -151,25 +170,29 @@ func (tcpClient *TcpClient) Receive() {
 			fmt.Println("Second player left")
 			return
 		}
-		fmt.Printf("Your turn: ")
-		fmt.Scan(&x, &y)
-		for {
-			if game.Check(bytes[:game.FieldSizeInBytes], x, y) {
-				msg[0] = byte((x-1)*3 + y - 1)
-				break
-			} else {
-				fmt.Printf("Wrong choice. Try again: ")
-				fmt.Scan(&x, &y)
-			}
-		}
-
-		n, err = tcpClient.TcpConn.Write(msg)
-
+		//Call the move function in which we pass
+		//the field to check for correct input
+		msg[0] = readPlayerInputAndCheckIt(bytes)
+		_, err = tcpClient.TcpConn.Write(msg)
 		if err != nil {
 			log.Printf("Could not send message: %v\n", err.Error())
 			return
 		}
 
-		log.Printf("Sent %v bytes: %v\n", n, msg)
+		fmt.Println("Awaiting second player's turn...")
+	}
+}
+
+//The client makes a move that is checked for correctness
+func readPlayerInputAndCheckIt(bytes []byte) byte {
+	var x, y int
+	fmt.Printf("Your turn: ")
+	fmt.Scanln(&x, &y)
+	for {
+		if game.Check(bytes[:game.FieldSizeInBytes], x, y) {
+			return byte((x-1)*3 + y - 1)
+		}
+		fmt.Printf("Wrong choice. Try again: ")
+		fmt.Scanln(&x, &y)
 	}
 }
